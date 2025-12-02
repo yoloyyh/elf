@@ -12,14 +12,6 @@ set(ELF_CPP_VERSION 1.0.1)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
-include(FetchContent)
-FetchContent_Declare(
-        tl-expected
-        GIT_REPOSITORY https://github.com/TartanLlama/expected.git
-        GIT_TAG v1.3.0
-)
-FetchContent_MakeAvailable(tl-expected)
-
 add_library(
         elf_cpp
         src/error.cpp
@@ -37,8 +29,6 @@ target_include_directories(
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
-
-target_link_libraries(elf_cpp PUBLIC tl::expected)
 
 install(
         DIRECTORY

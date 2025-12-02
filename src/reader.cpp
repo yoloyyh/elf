@@ -182,20 +182,17 @@ std::optional<std::vector<std::byte>> elf::Reader::readVirtualMemory(Elf64_Addr 
     return out;
 }
 
-tl::expected<elf::Reader, std::error_code> elf::openFile(const std::filesystem::path &path) {
+std::optional<elf::Reader> elf::openFile(const std::filesystem::path &path) {
     std::error_code ec;
     size_t length = std::filesystem::file_size(path, ec);
 
-    if (ec != std::errc())
-        return tl::unexpected(ec);
+    if (ec || length < EI_NIDENT)
+        return std::nullopt;
 
-    if (length < EI_NIDENT)
-        return tl::unexpected(Error::INVALID_ELF_HEADER);
-
-    int fd = open(path.string().c_str(), O_RDONLY);
+    int fd = open(path.c_str(), O_RDONLY);
 
     if (fd < 0)
-        return tl::unexpected(std::error_code(errno, std::system_category()));
+        return std::nullopt;
 
     void *buffer = mmap(
             nullptr,
@@ -208,7 +205,7 @@ tl::expected<elf::Reader, std::error_code> elf::openFile(const std::filesystem::
 
     if (buffer == MAP_FAILED) {
         close(fd);
-        return tl::unexpected(std::error_code(errno, std::system_category()));
+        return std::nullopt;
     }
 
     close(fd);
@@ -220,17 +217,17 @@ tl::expected<elf::Reader, std::error_code> elf::openFile(const std::filesystem::
         ident[EI_MAG2] != ELFMAG2 ||
         ident[EI_MAG3] != ELFMAG3) {
         munmap(buffer, length);
-        return tl::unexpected(Error::INVALID_ELF_MAGIC);
+        return std::nullopt;
     }
 
     if (ident[EI_CLASS] != ELFCLASS64 && ident[EI_CLASS] != ELFCLASS32) {
         munmap(buffer, length);
-        return tl::unexpected(Error::INVALID_ELF_CLASS);
+        return std::nullopt;
     }
 
     if (ident[EI_DATA] != ELFDATA2LSB && ident[EI_DATA] != ELFDATA2MSB) {
         munmap(buffer, length);
-        return tl::unexpected(Error::INVALID_ELF_ENDIAN);
+        return std::nullopt;
     }
 
     return Reader(std::shared_ptr<void>(buffer, [=](void *ptr) {
