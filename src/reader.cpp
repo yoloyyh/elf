@@ -112,14 +112,23 @@ const std::byte *elf::Reader::virtualMemory(Elf64_Addr address) const {
                     return false;
 
                 return address >= segment->virtualAddress() &&
-                       address <= segment->virtualAddress() + segment->fileSize() - 1;
+                       address <= segment->virtualAddress() + segment->memorySize() - 1;
             }
     );
 
     if (it == segments.end())
         return nullptr;
 
-    return it->operator*().data() + address - it->operator*().virtualAddress();
+    auto seg = *it;
+    uint64_t seg_va = seg->virtualAddress();
+    uint64_t seg_filesz = seg->fileSize();
+    uint64_t offset_in_seg = address - seg_va;
+    
+    if (offset_in_seg < seg_filesz) {
+        return seg->data() + offset_in_seg;
+    } else {
+        return nullptr;
+    }
 }
 
 std::optional<std::vector<std::byte>> elf::Reader::readVirtualMemory(Elf64_Addr address, Elf64_Xword length) const {
@@ -171,7 +180,6 @@ std::optional<std::vector<std::byte>> elf::Reader::readVirtualMemory(Elf64_Addr 
                 out.insert(out.end(), zeros, std::byte{0});
             }
         } else {
-            // entirely in bss (no file data), fill zeros
             out.insert(out.end(), chunk, std::byte{0});
         }
 
