@@ -12,7 +12,13 @@ set(ELF_CPP_VERSION 1.0.1)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
-find_package(tl-expected CONFIG REQUIRED)
+include(FetchContent)
+FetchContent_Declare(
+        tl-expected
+        GIT_REPOSITORY https://github.com/TartanLlama/expected.git
+        GIT_TAG v1.3.0
+)
+FetchContent_MakeAvailable(tl-expected)
 
 add_library(
         elf_cpp
