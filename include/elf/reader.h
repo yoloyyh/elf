@@ -27,6 +27,7 @@ namespace elf {
 
     private:
         std::shared_ptr<void> mBuffer;
+        mutable std::optional<std::vector<std::shared_ptr<ISegment>>> mSegmentsCache; // 缓存segments结果
     };
 
     tl::expected<Reader, std::error_code> openFile(const std::filesystem::path &path);
