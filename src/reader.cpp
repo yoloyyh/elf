@@ -112,82 +112,41 @@ const std::byte *elf::Reader::virtualMemory(Elf64_Addr address) const {
                     return false;
 
                 return address >= segment->virtualAddress() &&
-                       address <= segment->virtualAddress() + segment->memorySize() - 1;
+                       address <= segment->virtualAddress() + segment->fileSize() - 1;
             }
     );
 
     if (it == segments.end())
         return nullptr;
 
-    auto seg = *it;
-    uint64_t seg_va = seg->virtualAddress();
-    uint64_t seg_filesz = seg->fileSize();
-    uint64_t offset_in_seg = address - seg_va;
-    
-    if (offset_in_seg < seg_filesz) {
-        return seg->data() + offset_in_seg;
-    } else {
-        return nullptr;
-    }
+    return it->operator*().data() + address - it->operator*().virtualAddress();
 }
 
 std::optional<std::vector<std::byte>> elf::Reader::readVirtualMemory(Elf64_Addr address, Elf64_Xword length) const {
-    if (length == 0) return std::vector<std::byte>{};
+    auto segments = this->segments();
 
-    // 使用缓存的segments，避免重复计算
-    const auto& segments = this->segments();
-    std::vector<std::byte> out;
-    out.reserve(length);
+    auto it = std::find_if(
+            segments.begin(),
+            segments.end(),
+            [=](const auto &segment) {
+                if (segment->type() != PT_LOAD)
+                    return false;
 
-    uint64_t cur = address;
-    size_t remaining = (size_t) length;
-
-    while (remaining > 0) {
-        auto it = std::find_if(segments.begin(), segments.end(), [&](const auto &segment) {
-            if (segment->type() != PT_LOAD) return false;
-            uint64_t va = segment->virtualAddress();
-            uint64_t memsz = segment->memorySize();
-            return cur >= va && cur < va + memsz;
-        });
-
-        if (it == segments.end()) {
-            // unmapped virtual address
-            return std::nullopt;
-        }
-
-        auto seg = *it;
-        uint64_t seg_va = seg->virtualAddress();
-        uint64_t seg_filesz = seg->fileSize();
-        uint64_t seg_memsz = seg->memorySize();
-
-        // how many bytes remain in this segment (up to memsz)
-        uint64_t seg_left = (seg_va + seg_memsz) - cur;
-        size_t chunk = (size_t) std::min<uint64_t>(seg_left, remaining);
-
-        // offset within file-backed data
-        uint64_t offset_in_seg = cur - seg_va;
-
-        // if offset falls within file-backed area, copy available file bytes
-        if (offset_in_seg < seg_filesz) {
-            uint64_t file_avail = seg_filesz - offset_in_seg;
-            size_t copy_bytes = (size_t) std::min<uint64_t>(file_avail, chunk);
-            const std::byte *src = seg->data() + offset_in_seg;
-            out.insert(out.end(), src, src + copy_bytes);
-
-            // if chunk > copy_bytes, remaining part must be zero (BSS)
-            if (copy_bytes < chunk) {
-                size_t zeros = chunk - copy_bytes;
-                out.insert(out.end(), zeros, std::byte{0});
+                return address >= segment->virtualAddress() &&
+                       address <= segment->virtualAddress() + segment->fileSize() - 1;
             }
-        } else {
-            out.insert(out.end(), chunk, std::byte{0});
-        }
+    );
 
-        cur += chunk;
-        remaining -= chunk;
-    }
+    if (it == segments.end())
+        return std::nullopt;
 
-    return out;
+    if (it->operator*().virtualAddress() + it->operator*().fileSize() - address < length)
+        return std::nullopt;
+
+    return std::vector<std::byte>{
+            it->operator*().data() + address - it->operator*().virtualAddress(),
+            it->operator*().data() + address - it->operator*().virtualAddress() + length
+    };
 }
 
 std::optional<elf::Reader> elf::openFile(const std::filesystem::path &path) {
