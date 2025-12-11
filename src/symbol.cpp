@@ -118,6 +118,9 @@ elf::SymbolTable::SymbolTable(elf::Reader reader, std::shared_ptr<ISection> sect
 }
 
 size_t elf::SymbolTable::size() {
+    if (mSection->entrySize() == 0) {
+        return 0;
+    }
     return mSection->size() / mSection->entrySize();
 }
 
